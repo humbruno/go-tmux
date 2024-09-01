@@ -22,7 +22,7 @@ func sessionNameExists(str string) bool {
 	// -t= checks for exact match
 	arg := fmt.Sprintf("-t=%s", str)
 	cmd := exec.Command("tmux", "has-session", arg)
-	_, err := cmd.Output()
+	err := cmd.Run()
 	return err == nil
 }
 
@@ -42,11 +42,9 @@ func main() {
 					if utf8.RuneCountInString(str) == 0 {
 						return errors.New("Please enter at least 1 character.")
 					}
-
 					if sessionNameExists(str) {
 						return errors.New("Session name already exists.")
 					}
-
 					return nil
 				}),
 			huh.NewInput().
@@ -79,16 +77,14 @@ func main() {
 	defer fmt.Println("All done!")
 
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName)
-	_, err = cmd.Output()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		log.Fatal("Failed to create session, exiting program.")
 	}
 
 	n, _ := strconv.Atoi(numWindows)
 	for i := 1; i < n; i++ {
 		cmd := exec.Command("tmux", "new-window", "-d", "-t", sessionName)
-		_, err := cmd.Output()
-		if err != nil {
+		if err := cmd.Run(); err != nil {
 			fmt.Println("Failed to create window in session.")
 		}
 	}
@@ -98,14 +94,17 @@ func main() {
 	}
 
 	fmt.Println("> Attaching to new session...")
-	cmd = exec.Command("tmux", "a", "-t", sessionName)
+	cmd = exec.Command("tmux", "switch-client", "-t", sessionName)
 
-	if isRunningInTmux() {
-		cmd = exec.Command("tmux", "switch-client", "-t", sessionName)
+	if !isRunningInTmux() {
+		cmd = exec.Command("tmux", "attach", "-t", sessionName)
+		// hands over control of the terminal to the tmux process
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
 	}
 
-	_, err = cmd.Output()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		fmt.Println("! Failed to attach to session.")
 	}
 }
